@@ -1,0 +1,14 @@
+[package]
+name = "shellish_parse"
+version = "1.0.0"
+authors = ["Solra Bizna <solra@bizna.name>"]
+edition = "2021"
+description = "Parses \"command line\" syntax inspired by Bourne shell (\"shellish\")"
+readme = "README.md"
+homepage = "https://github.com/SolraBizna/shellish_parse"
+repository = "https://github.com/SolraBizna/shellish_parse"
+license = "MIT OR Apache-2.0"
+keywords = ["bourne", "sh", "shellish"]
+categories = ["command-line-interface", "parser-implementations"]
+
+[dependencies]
