@@ -16,7 +16,7 @@ a user needs to be able to input commands.
 Add `shellish_parse` to your `Cargo.toml`:
 
 ```toml
-shellish_parse = "1.0"
+shellish_parse = "2.0"
 ```
 
 Use `shellish_parse::parse` to parse some shellish:
@@ -37,7 +37,7 @@ assert_eq!(shellish_parse::parse(line, false).unwrap(), &[
     "In�valid"
 ]);
 assert_eq!(shellish_parse::parse(line, true).unwrap_err(),
-    shellish_parse::ParseError::UnrecognizedEscape("\\m"));
+    shellish_parse::ParseError::UnrecognizedEscape("\\m".to_string()));
 ```
 
 You may want to use an alias to make it more convenient, if you're using it

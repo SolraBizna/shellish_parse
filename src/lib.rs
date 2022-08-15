@@ -14,7 +14,7 @@
 //! Add `shellish_parse` to your `Cargo.toml`:
 //! 
 //! ```toml
-//! shellish_parse = "1.0"
+//! shellish_parse = "2.0"
 //! ```
 //! 
 //! Use `shellish_parse::parse` to parse some shellish:
@@ -35,7 +35,7 @@
 //!     "In�valid"
 //! ]);
 //! assert_eq!(shellish_parse::parse(line, true).unwrap_err(),
-//!     shellish_parse::ParseError::UnrecognizedEscape("\\m"));
+//!     shellish_parse::ParseError::UnrecognizedEscape("\\m".to_string()));
 //! ```
 //! 
 //! You may want to use an alias to make it more convenient, if you're using it
@@ -241,17 +241,17 @@ use std::{
 /// Most of these errors can be resolved with additional user input. The
 /// `needs_continuation` method is there to help. See
 /// [the module-level documentation](index.html) for more information.
-#[derive(Clone,Copy,Debug,PartialEq,Eq)]
-pub enum ParseError<'a> {
+#[derive(Clone,Debug,PartialEq,Eq)]
+pub enum ParseError {
     /// The command line ended with an unescaped backslash.
     DanglingBackslash,
     /// A string was still open when the command line ended.
     DanglingString,
     /// There was an unrecognized backslash escape sequence.
-    UnrecognizedEscape(&'a str),
+    UnrecognizedEscape(String),
 }
 
-impl ParseError<'_> {
+impl ParseError {
     /// Returns `true` if this kind of ParseError will be resolved if the user
     /// provides more input.
     pub fn needs_continuation(&self) -> bool {
@@ -263,20 +263,20 @@ impl ParseError<'_> {
     }
 }
 
-impl Display for ParseError<'_> {
+impl Display for ParseError {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             &ParseError::DanglingBackslash
                 => write!(fmt, "dangling backslash"),
             &ParseError::DanglingString
                 => write!(fmt, "dangling string"),
-            &ParseError::UnrecognizedEscape(seq)
+            &ParseError::UnrecognizedEscape(ref seq)
                 => write!(fmt, "unrecognized escape sequence: {:?}", seq)
         }
     }
 }
 
-impl Error for ParseError<'_> {
+impl Error for ParseError {
 }
 
 /// Parse a shellish string into elements. See
@@ -324,7 +324,7 @@ pub fn parse(input: &str, strict_escapes: bool) -> Result<Vec<String>, ParseErro
                     b'n' => cur_arg.push(b'\n'),
                     _ => {
                         if strict_escapes {
-                            return Err(ParseError::UnrecognizedEscape(&input[pos-1..=pos]))
+                            return Err(ParseError::UnrecognizedEscape(input[pos-1..=pos].to_string()))
                         }
                         else {
                             cur_arg.extend_from_slice("\u{FFFD}".as_bytes());
