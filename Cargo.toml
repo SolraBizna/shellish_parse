@@ -1,6 +1,6 @@
 [package]
 name = "shellish_parse"
-version = "2.0.0"
+version = "2.1.0"
 authors = ["Solra Bizna <solra@bizna.name>"]
 edition = "2021"
 description = "Parses \"command line\" syntax inspired by Bourne shell (\"shellish\")"

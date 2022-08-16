@@ -16,7 +16,7 @@ a user needs to be able to input commands.
 Add `shellish_parse` to your `Cargo.toml`:
 
 ```toml
-shellish_parse = "2.0"
+shellish_parse = "2.1"
 ```
 
 Use `shellish_parse::parse` to parse some shellish:
@@ -50,6 +50,46 @@ assert_eq!(parse_shellish(line, false).unwrap(), &[
     "Hello", "World"
 ]);
 ```
+
+Regular parse is great and everything, but sometimes you want to be able
+to chain multiple commands on the same line. That's where `multiparse`
+comes in:
+
+```rust
+let line = "Hello World; How are you?";
+assert_eq!(shellish_parse::multiparse(line, true, &[";"]).unwrap(), &[
+    (vec!["Hello".to_string(), "World".to_string()], Some(0)),
+    (vec!["How".to_string(), "are".to_string(), "you?".to_string()], None),
+]);
+```
+
+(Since it returns a vec of tuples, it's rather awkward to phrase in tests.)
+
+You pass the separators you want to use. A single semicolon is probably
+all you want. If you want to get really fancy, you can add arbitrarily many
+different separators. Each command returned comes with the index of the
+separator that terminated it:
+
+```rust
+let line = "test -f foo && pv foo | bar || echo no foo & echo wat";
+assert_eq!(shellish_parse::multiparse(line, true, &["&&", "||", "&", "|",
+                                                    ";"]).unwrap(), &[
+    (vec!["test".to_string(), "-f".to_string(), "foo".to_string()], Some(0)),
+    (vec!["pv".to_string(), "foo".to_string()], Some(3)),
+    (vec!["bar".to_string()], Some(1)),
+    (vec!["echo".to_string(), "no".to_string(), "foo".to_string()], Some(2)),
+    (vec!["echo".to_string(), "wat".to_string()], None),
+]);
+```
+
+Since the separators are checked in the order passed, put longer
+separators before shorter ones. If `"&"` preceded `"&&"` in the above call,
+`"&"` would always be recognized first, and `"&&"` would never be
+recognized.
+
+Extremely shellish things, like redirection or using parentheses to group
+commands, are out of scope of this crate. If you want those things, you
+might be writing an actual shell, and not just something shellish.
 
 ## Syntax
 
