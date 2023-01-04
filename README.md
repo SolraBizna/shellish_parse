@@ -16,7 +16,7 @@ a user needs to be able to input commands.
 Add `shellish_parse` to your `Cargo.toml`:
 
 ```toml
-shellish_parse = "2.1"
+shellish_parse = "2.2"
 ```
 
 Use `shellish_parse::parse` to parse some shellish:
@@ -29,7 +29,8 @@ assert_eq!(shellish_parse::parse(line, false).unwrap(), &[
 ```
 
 The first parameter, a `&str`, is the line to parse. The second parameter,
-a `bool`, is whether an unrecognized escape sequence should be an error:
+a can be a `bool`, indicating whether an unrecognized escape sequence
+should be an error:
 
 ```rust
 let line = r#"In\mvalid"#; // note: raw string
@@ -40,8 +41,22 @@ assert_eq!(shellish_parse::parse(line, true).unwrap_err(),
     shellish_parse::ParseError::UnrecognizedEscape("\\m".to_string()));
 ```
 
-You may want to use an alias to make it more convenient, if you're using it
-in a lot of places:
+Or a [`ParseOptions`](struct.ParseOptions.html), giving you more control
+(see that struct's documentation for more details):
+
+```rust
+let line = r#"In\mvalid"#; // note: raw string
+let options = ParseOptions::new().no_strict_escapes();
+assert_eq!(shellish_parse::parse(line, options).unwrap(), &[
+    "In�valid"
+]);
+let options = ParseOptions::new();
+assert_eq!(shellish_parse::parse(line, options).unwrap_err(),
+    shellish_parse::ParseError::UnrecognizedEscape("\\m".to_string()));
+```
+
+You may want to use an alias to make calling this function more convenient
+if you're using it in a lot of places:
 
 ```rust
 use shellish_parse::parse as parse_shellish;
@@ -51,13 +66,27 @@ assert_eq!(parse_shellish(line, false).unwrap(), &[
 ]);
 ```
 
+And putting your preferred `ParseOptions` into a `const` can save you some
+typing:
+
+```rust
+const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new()
+        .allow_comments_within_elements();
+use shellish_parse::parse as parse_shellish;
+let line = "This line contains a com#ment";
+assert_eq!(parse_shellish(line, SHELLISH_OPTIONS).unwrap(), &[
+    "This", "line", "contains", "a", "com"
+]);
+```
+
 Regular parse is great and everything, but sometimes you want to be able
 to chain multiple commands on the same line. That's where `multiparse`
 comes in:
 
 ```rust
 let line = "Hello World; How are you?";
-assert_eq!(shellish_parse::multiparse(line, true, &[";"]).unwrap(), &[
+assert_eq!(shellish_parse::multiparse(line, SHELLISH_OPTIONS, &[";"])
+           .unwrap(), &[
     (vec!["Hello".to_string(), "World".to_string()], Some(0)),
     (vec!["How".to_string(), "are".to_string(), "you?".to_string()], None),
 ]);
@@ -72,8 +101,9 @@ separator that terminated it:
 
 ```rust
 let line = "test -f foo && pv foo | bar || echo no foo & echo wat";
-assert_eq!(shellish_parse::multiparse(line, true, &["&&", "||", "&", "|",
-                                                    ";"]).unwrap(), &[
+assert_eq!(shellish_parse::multiparse(line, SHELLISH_OPTIONS,
+                                      &["&&", "||", "&", "|", ";"])
+           .unwrap(), &[
     (vec!["test".to_string(), "-f".to_string(), "foo".to_string()], Some(0)),
     (vec!["pv".to_string(), "foo".to_string()], Some(3)),
     (vec!["bar".to_string()], Some(1)),
@@ -104,7 +134,7 @@ Elements are separated by one or more whitespace characters.
 
 ```rust
 let line = "Hello there!";
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "Hello", "there!",
 ])
 ```
@@ -115,7 +145,7 @@ whitespace between elements acts the same as a single space.
 
 ```rust
 let line = "\tHello\n\t  there!    \n\n";
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "Hello", "there!",
 ])
 ```
@@ -138,7 +168,7 @@ Backslash followed by an ASCII letter (26 letters `'A'` through `'Z'` and
 
 ```rust
 let line = r#"General\t Kenobi\n"#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "General\t", "Kenobi\n",
 ])
 ```
@@ -151,7 +181,7 @@ backslash)
 ```rust
 let line = r#"You will die br\
               aver than most."#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "You", "will", "die", "braver", "than", "most."
 ])
 ```
@@ -161,7 +191,7 @@ special meaning it might otherwise have had.
 
 ```rust
 let line = r#"Four\-score\ and\ seven \"years\" ago"#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "Four-score and seven", "\"years\"", "ago"
 ])
 ```
@@ -180,7 +210,7 @@ the same element.
 
 ```rust
 let line = r#"cp "Quotation Mark Test" "Quotation Mark Test Backup""#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "cp", "Quotation Mark Test", "Quotation Mark Test Backup"
 ])
 ```
@@ -189,7 +219,7 @@ Quoting will *not* create a new element on its own.
 
 ```rust
 let line = r#"I Probably Should Have"Added A Space!""#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "I", "Probably", "Should", "HaveAdded A Space!"
 ])
 ```
@@ -199,7 +229,7 @@ backslash escapes, including `\"`.
 
 ```rust
 let line = r#"movie recommend "\"Swing it\" magistern""#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "movie", "recommend", "\"Swing it\" magistern"
 ])
 ```
@@ -211,7 +241,7 @@ A single-quoted string **will not** interpret backslash escapes, not even
 let line = r#"addendum 'and then he said "But I haven'\''t seen it, I \
 just searched for '\''movies with quotes in their titles'\'' on IMDB and \
 saw that it was popular"'"#;
-assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
     "addendum", "and then he said \"But I haven't seen it, I just \
 searched for 'movies with quotes in their titles' on IMDB and saw that it \
 was popular\""
@@ -241,7 +271,7 @@ let input_lines = [r#"This is not a very \"#,
 let mut input_iter = input_lines.into_iter();
 let mut buf = input_iter.next().unwrap().to_string();
 let result = loop {
-    match shellish_parse::parse(&buf, true) {
+    match shellish_parse::parse(&buf, SHELLISH_OPTIONS) {
         Err(x) if x.needs_continuation() => {
             buf.push('\n'); // don't forget this part!
             buf.push_str(input_iter.next().unwrap())
@@ -255,10 +285,62 @@ assert_eq!(result.unwrap(), &[
 ]);
 ```
 
+### Comments
+
+By default, comments are delimited by a `#` character.
+
+```rust
+let line = "Comment test. #comments #sayinghashtagoutloud";
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+    "Comment", "test."
+])
+```
+
+You can change this to any other character using
+[`ParseOptions`](struct.ParseOptions.html):
+
+```rust
+const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new()
+        .comment_char(Some('%'));
+let line = "bind lmbutton Interact % make left mouse button interact";
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+    "bind", "lmbutton", "Interact"
+])
+```
+
+You can also disable comment parsing entirely:
+
+```rust
+const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new()
+        .comment_char(None);
+let line = "Comment test. #comments #sayinghashtagoutloud";
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+    "Comment", "test.", "#comments", "#sayinghashtagoutloud"
+])
+```
+
+By default, comments are not allowed in the middle of an element. This
+behavior matches the Bourne shell. You can make it so that any comment
+character, found outside a string, will be accepted as the beginning of a
+comment:
+
+```rust
+let line = "Comment that breaks an el#ement.";
+const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+    "Comment", "that", "breaks", "an", "el#ement."
+]);
+const SHELLISH_OPTIONS_2: ParseOptions = ParseOptions::new()
+        .allow_comments_within_elements();
+assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS_2).unwrap(), &[
+    "Comment", "that", "breaks", "an", "el"
+]);
+```
+
 ## Legalese
 
-`shellish_parse` is copyright 2022, Solra Bizna, and licensed under either
-of:
+`shellish_parse` is copyright 2022-2023, Solra Bizna, and licensed under
+either of:
 
 - Apache License, Version 2.0
   ([LICENSE-APACHE](LICENSE-APACHE) or
