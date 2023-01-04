@@ -14,7 +14,7 @@
 //! Add `shellish_parse` to your `Cargo.toml`:
 //!
 //! ```toml
-//! shellish_parse = "2.1"
+//! shellish_parse = "2.2"
 //! ```
 //!
 //! Use `shellish_parse::parse` to parse some shellish:
@@ -27,7 +27,8 @@
 //! ```
 //!
 //! The first parameter, a `&str`, is the line to parse. The second parameter,
-//! a `bool`, is whether an unrecognized escape sequence should be an error:
+//! a can be a `bool`, indicating whether an unrecognized escape sequence
+//! should be an error:
 //!
 //! ```rust
 //! let line = r#"In\mvalid"#; // note: raw string
@@ -37,9 +38,24 @@
 //! assert_eq!(shellish_parse::parse(line, true).unwrap_err(),
 //!     shellish_parse::ParseError::UnrecognizedEscape("\\m".to_string()));
 //! ```
+//! 
+//! Or a [`ParseOptions`](struct.ParseOptions.html), giving you more control
+//! (see that struct's documentation for more details):
+//! 
+//! ```rust
+//! # use shellish_parse::ParseOptions;
+//! let line = r#"In\mvalid"#; // note: raw string
+//! let options = ParseOptions::new().no_strict_escapes();
+//! assert_eq!(shellish_parse::parse(line, options).unwrap(), &[
+//!     "In�valid"
+//! ]);
+//! let options = ParseOptions::new();
+//! assert_eq!(shellish_parse::parse(line, options).unwrap_err(),
+//!     shellish_parse::ParseError::UnrecognizedEscape("\\m".to_string()));
+//! ```
 //!
-//! You may want to use an alias to make it more convenient, if you're using it
-//! in a lot of places:
+//! You may want to use an alias to make calling this function more convenient
+//! if you're using it in a lot of places:
 //!
 //! ```rust
 //! use shellish_parse::parse as parse_shellish;
@@ -48,14 +64,31 @@
 //!     "Hello", "World"
 //! ]);
 //! ```
+//! 
+//! And putting your preferred `ParseOptions` into a `const` can save you some
+//! typing:
+//! 
+//! ```rust
+//! # use shellish_parse::ParseOptions;
+//! const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new()
+//!         .allow_comments_within_elements();
+//! use shellish_parse::parse as parse_shellish;
+//! let line = "This line contains a com#ment";
+//! assert_eq!(parse_shellish(line, SHELLISH_OPTIONS).unwrap(), &[
+//!     "This", "line", "contains", "a", "com"
+//! ]);
+//! ```
 //!
 //! Regular parse is great and everything, but sometimes you want to be able
 //! to chain multiple commands on the same line. That's where `multiparse`
 //! comes in:
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = "Hello World; How are you?";
-//! assert_eq!(shellish_parse::multiparse(line, true, &[";"]).unwrap(), &[
+//! assert_eq!(shellish_parse::multiparse(line, SHELLISH_OPTIONS, &[";"])
+//!            .unwrap(), &[
 //!     (vec!["Hello".to_string(), "World".to_string()], Some(0)),
 //!     (vec!["How".to_string(), "are".to_string(), "you?".to_string()], None),
 //! ]);
@@ -69,9 +102,12 @@
 //! separator that terminated it:
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = "test -f foo && pv foo | bar || echo no foo & echo wat";
-//! assert_eq!(shellish_parse::multiparse(line, true, &["&&", "||", "&", "|",
-//!                                                     ";"]).unwrap(), &[
+//! assert_eq!(shellish_parse::multiparse(line, SHELLISH_OPTIONS,
+//!                                       &["&&", "||", "&", "|", ";"])
+//!            .unwrap(), &[
 //!     (vec!["test".to_string(), "-f".to_string(), "foo".to_string()], Some(0)),
 //!     (vec!["pv".to_string(), "foo".to_string()], Some(3)),
 //!     (vec!["bar".to_string()], Some(1)),
@@ -101,8 +137,10 @@
 //! Elements are separated by one or more whitespace characters.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = "Hello there!";
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "Hello", "there!",
 //! ])
 //! ```
@@ -112,8 +150,10 @@
 //! whitespace between elements acts the same as a single space.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = "\tHello\n\t  there!    \n\n";
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "Hello", "there!",
 //! ])
 //! ```
@@ -135,8 +175,10 @@
 //!   pass as the second parameter to `parse`.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"General\t Kenobi\n"#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "General\t", "Kenobi\n",
 //! ])
 //! ```
@@ -147,9 +189,11 @@
 //! backslash)
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"You will die br\
 //!               aver than most."#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "You", "will", "die", "braver", "than", "most."
 //! ])
 //! ```
@@ -158,8 +202,10 @@
 //! special meaning it might otherwise have had.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"Four\-score\ and\ seven \"years\" ago"#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "Four-score and seven", "\"years\"", "ago"
 //! ])
 //! ```
@@ -177,8 +223,10 @@
 //! the same element.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"cp "Quotation Mark Test" "Quotation Mark Test Backup""#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "cp", "Quotation Mark Test", "Quotation Mark Test Backup"
 //! ])
 //! ```
@@ -186,8 +234,10 @@
 //! Quoting will *not* create a new element on its own.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"I Probably Should Have"Added A Space!""#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "I", "Probably", "Should", "HaveAdded A Space!"
 //! ])
 //! ```
@@ -196,8 +246,10 @@
 //! backslash escapes, including `\"`.
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"movie recommend "\"Swing it\" magistern""#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "movie", "recommend", "\"Swing it\" magistern"
 //! ])
 //! ```
@@ -206,10 +258,12 @@
 //! `\'`!
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! let line = r#"addendum 'and then he said "But I haven'\''t seen it, I \
 //! just searched for '\''movies with quotes in their titles'\'' on IMDB and \
 //! saw that it was popular"'"#;
-//! assert_eq!(shellish_parse::parse(line, true).unwrap(), &[
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
 //!     "addendum", "and then he said \"But I haven't seen it, I just \
 //! searched for 'movies with quotes in their titles' on IMDB and saw that it \
 //! was popular\""
@@ -231,6 +285,8 @@
 //! method of `ParseResult` is here to help:
 //!
 //! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
 //! // note: raw strings
 //! let input_lines = [r#"This is not a very \"#,
 //!                    r#"long line, so why did \"#,
@@ -239,7 +295,7 @@
 //! let mut input_iter = input_lines.into_iter();
 //! let mut buf = input_iter.next().unwrap().to_string();
 //! let result = loop {
-//!     match shellish_parse::parse(&buf, true) {
+//!     match shellish_parse::parse(&buf, SHELLISH_OPTIONS) {
 //!         Err(x) if x.needs_continuation() => {
 //!             buf.push('\n'); // don't forget this part!
 //!             buf.push_str(input_iter.next().unwrap())
@@ -252,11 +308,68 @@
 //!     "we", "choose", "to", "force \ncontinuation?"
 //! ]);
 //! ```
+//! 
+//! ## Comments
+//! 
+//! By default, comments are delimited by a `#` character.
+//! 
+//! ```rust
+//! # use shellish_parse::ParseOptions;
+//! # const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
+//! let line = "Comment test. #comments #sayinghashtagoutloud";
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+//!     "Comment", "test."
+//! ])
+//! ```
+//! 
+//! You can change this to any other character using
+//! [`ParseOptions`](struct.ParseOptions.html):
+//! 
+//! ```rust
+//! # use shellish_parse::ParseOptions;
+//! const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new()
+//!         .comment_char(Some('%'));
+//! let line = "bind lmbutton Interact % make left mouse button interact";
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+//!     "bind", "lmbutton", "Interact"
+//! ])
+//! ```
+//! 
+//! You can also disable comment parsing entirely:
+//! 
+//! ```rust
+//! # use shellish_parse::ParseOptions;
+//! const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new()
+//!         .comment_char(None);
+//! let line = "Comment test. #comments #sayinghashtagoutloud";
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+//!     "Comment", "test.", "#comments", "#sayinghashtagoutloud"
+//! ])
+//! ```
+//! 
+//! By default, comments are not allowed in the middle of an element. This
+//! behavior matches the Bourne shell. You can make it so that any comment
+//! character, found outside a string, will be accepted as the beginning of a
+//! comment:
+//! 
+//! ```rust
+//! # use shellish_parse::ParseOptions;
+//! let line = "Comment that breaks an el#ement.";
+//! const SHELLISH_OPTIONS: ParseOptions = ParseOptions::new();
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS).unwrap(), &[
+//!     "Comment", "that", "breaks", "an", "el#ement."
+//! ]);
+//! const SHELLISH_OPTIONS_2: ParseOptions = ParseOptions::new()
+//!         .allow_comments_within_elements();
+//! assert_eq!(shellish_parse::parse(line, SHELLISH_OPTIONS_2).unwrap(), &[
+//!     "Comment", "that", "breaks", "an", "el"
+//! ]);
+//! ```
 //!
 //! # Legalese
 //!
-//! `shellish_parse` is copyright 2022, Solra Bizna, and licensed under either
-//! of:
+//! `shellish_parse` is copyright 2022-2023, Solra Bizna, and licensed under
+//! either of:
 //!
 //! - Apache License, Version 2.0
 //!   ([LICENSE-APACHE](LICENSE-APACHE) or
@@ -275,6 +388,68 @@ use std::{
     fmt::Display,
     error::Error,
 };
+
+/// Options for configuring command-line parsing.
+/// 
+/// For backwards compatibility with 2.1, you can convert a `bool` into this
+/// type. `true` will be the default, and `false` will be `no_strict_escapes`.
+#[derive(Copy,Clone,Debug)]
+pub struct ParseOptions {
+    strict_escapes: bool,
+    allow_comments_within_elements: bool,
+    comment_char: Option<char>,
+}
+
+impl ParseOptions {
+    /// Create a new `ParseOptions` starting at the defaults.
+    /// 
+    /// Equivalent to `ParseOptions::default()`, except that it's a `const fn`
+    /// so you can put it into a `const` variable if you like.
+    pub const fn new() -> ParseOptions {
+        ParseOptions {
+            strict_escapes: true,
+            allow_comments_within_elements: false,
+            comment_char: Some('#'),
+        }
+    }
+    /// The default is for bad escape sequences to result in a `ParseError`.
+    /// If `no_strict_escapes()` is used, then bad escape sequences will result
+    /// in '�' instead.
+    pub const fn no_strict_escapes(mut self) -> Self {
+        self.strict_escapes = false;
+        self
+    }
+    /// The default is for comments to be delimited by a `#` character. You can
+    /// specify another comment character, or disable comment delimiting,
+    /// using `comment_char()`.
+    pub const fn comment_char(mut self, comment_char: Option<char>) -> Self {
+        self.comment_char = comment_char;
+        self
+    }
+    /// The default is that comments will only count if they are preceded by
+    /// whitespace. Thus, by default, `foo bar#baz # bang` will parse as
+    /// `["foo", "bar#baz"]`. This matches the behavior of the Bourne shell.
+    /// You can override this behavior by calling
+    /// `allow_comments_within_elements()`, which would make that line parse
+    /// as `["foo", "bar"]` instead.
+    pub const fn allow_comments_within_elements(mut self) -> Self {
+        self.allow_comments_within_elements = true;
+        self
+    }
+}
+
+impl Default for ParseOptions {
+    fn default() -> ParseOptions {
+        ParseOptions::new()
+    }
+}
+
+impl From<bool> for ParseOptions {
+    fn from(i: bool) -> Self {
+        if i { ParseOptions::new() }
+        else { ParseOptions::new().no_strict_escapes() }
+    }
+}
 
 /// A result of a failed command line parse.
 ///
@@ -324,19 +499,16 @@ impl Error for ParseError {
 /// information.
 ///
 /// - `input`: The string to parse.
-/// - `strict_escapes`: If `false`, bad escape sequences will result in '�'.
-///   If `true`, bad escape sequences will result in a `ParseError`. When in
-///   doubt, pass `true`.
+/// - `options`: A [`ParseOptions`](struct.ParseOptions.html) instance,
+///    describing the options in effect for this parse. For compatibility,
+///    may also be `true` as shorthand for `ParseOptions::new()`, and `false`
+///    as shorthand for `ParseOptions::new().no_strict_escapes()`.
 ///
 /// When parsing is successful, returns a vector containing each individual
 /// element of the parsed command line.
-///
-/// A future version of this crate may replace `strict_escapes` with a more
-/// featureful `Options` parameter. If this happens, the minor version will be
-/// bumped *and* `From<bool>` will be leveraged to preserve compatibility with
-/// the old meaning of this parameter.
-pub fn parse(input: &str, strict_escapes: bool) -> Result<Vec<String>, ParseError> {
-    match multiparse(input, strict_escapes, &[]) {
+pub fn parse<T: Into<ParseOptions>>(input: &str, options: T)
+-> Result<Vec<String>, ParseError> {
+    match inner_parse(input, &options.into(), &[]) {
         Ok(mut x) => {
             assert!(x.len() <= 1);
             if x.len() == 0 {
@@ -358,21 +530,25 @@ pub fn parse(input: &str, strict_escapes: bool) -> Result<Vec<String>, ParseErro
 /// information.
 ///
 /// - `input`: The string to parse.
-/// - `strict_escapes`: If `false`, bad escape sequences will result in '�'.
-///   If `true`, bad escape sequences will result in a `ParseError`. When in
-///   doubt, pass `true`.
+/// - `options`: A [`ParseOptions`](struct.ParseOptions.html) instance,
+///    describing the options in effect for this parse. For compatibility,
+///    may also be `true` as shorthand for `ParseOptions::new()`, and `false`
+///    as shorthand for `ParseOptions::new().no_strict_escapes()`.
 ///
 /// When parsing is successful, returns a vector containing tuples of
 /// individual commands, along with the index of the separator that ended that
 /// command. The last command may not have a separator, in which case it was
 /// ended by the end of the string, rather than a separator.
-///
-/// A future version of this crate may replace `strict_escapes` with a more
-/// featureful `Options` parameter. If this happens, the minor version will be
-/// bumped *and* `From<bool>` will be leveraged to preserve compatibility with
-/// the old meaning of this parameter.
-pub fn multiparse(input: &str, strict_escapes: bool, separators: &[&str])
--> Result<Vec<(Vec<String>, Option<usize>)>, ParseError> {
+pub fn multiparse<T: Into<ParseOptions>>(
+    input: &str, options: T, separators: &[&str]
+) -> Result<Vec<(Vec<String>, Option<usize>)>, ParseError> {
+    inner_parse(input, &options.into(), separators)
+}
+
+fn inner_parse(input: &str, options: &ParseOptions, separators: &[&str])
+    -> Result<Vec<(Vec<String>, Option<usize>)>, ParseError> {
+    let mut utf8_buffer = [0u8; 5];
+    let comment_bytes = options.comment_char.map(|x| x.encode_utf8(&mut utf8_buffer));
     let inbytes = input.as_bytes();
     let mut ret = Vec::new();
     let mut cur_line = Vec::new();
@@ -394,6 +570,15 @@ pub fn multiparse(input: &str, strict_escapes: bool, separators: &[&str])
                     ret.push((cur_line, Some(index)));
                     cur_line = Vec::new();
                     continue 'outer;
+                }
+            }
+            // Also check comments, iff we're not in a string (and comments are
+            // a thing)
+            if let Some(comment_bytes) = comment_bytes.as_ref() {
+                if cur_arg.is_none() || options.allow_comments_within_elements {
+                    if comment_bytes.as_bytes() == &rem[..comment_bytes.len()] {
+                        break 'outer;
+                    }
                 }
             }
         }
@@ -422,7 +607,7 @@ pub fn multiparse(input: &str, strict_escapes: bool, separators: &[&str])
                     b't' => cur_arg.push(b'\t'),
                     b'n' => cur_arg.push(b'\n'),
                     _ => {
-                        if strict_escapes {
+                        if options.strict_escapes {
                             return Err(ParseError::UnrecognizedEscape(input[pos-1..=pos].to_string()))
                         }
                         else {
