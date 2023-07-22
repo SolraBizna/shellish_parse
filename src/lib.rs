@@ -212,7 +212,9 @@
 //!
 //! Future versions may add more special characters. These will only be denoted
 //! by letter(s) or digit(s). For all other characters, the handling of
-//! backslash is guaranteed not to change.
+//! backslash is guaranteed not to change. Furthermore, if the option to insert
+//! null characters (U+0000) is ever added, it will be gated behind an option
+//! that defaults to *off*.
 //!
 //! ## Quoting
 //!
